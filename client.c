@@ -1,38 +1,35 @@
 #include <globals.h>
 
 //Function prototypes
-void* get_in_addr(struct sockaddr *sa);
-int login();
+struct paramStruct* login();
+struct paramStruct* logout(struct paramStruct* params,pthread_t* rcvThread);
+void receive(void* params_p);
+void enterSession(struct paramStruct* params,int msgType);
+void leaveSession(struct paramStruct* params);
+void list(struct paramStruct* params);
+void sendText(struct paramStruct* params,char buf[MAX_DATA]);
 
-// get sockaddr, IPv4 or IPv6:
-void* get_in_addr(struct sockaddr *sa) {
-    if (sa->sa_family == AF_INET) {
-        return &(((struct sockaddr_in*)sa)->sin_addr);
-	}
-    return &(((struct sockaddr_in6*)sa)->sin6_addr);
-}
-
-void receive(void* socketfd_p){
-	int* socketfd = (int*) socketfd_p;
+void receive(void* params_p){
+	struct threadStruct* params = (struct threadStruct*) params_p;
 	struct message* msg = (struct message*) malloc(sizeof(struct message)); 
 
 	while(1){
-		if(recv(*socketfd, msg, sizeof(struct message), 0) == -1){
+		if(recv(params->socketfd, msg, sizeof(struct message), 0) == -1){
 			fprintf(stderr, "client: recv\n");
 			break;
 		}
 		
 		if (msg->type == JN_ACK ){
 			printf("Successfully Joined Session ID %s\n", msg->data);
-			inSession = true;
+			params->inSession = true;
 		}
 		else if (msg->type == JN_NAK){
 			printf("Failure to Join Session ID %s\n", msg->data);
-			inSession = false;
+			params->inSession = false;
 		}
 		else if (msg->type == NS_ACK){
 			printf("Successfully Created & Joined Session ID\n", msg->data);
-			inSession = true;
+			params->inSession = true;
 		}
 		else if (msg->type == QU_ACK){
 			printf("%s",msg->data);
@@ -46,7 +43,7 @@ void receive(void* socketfd_p){
 	}
 }
 
-int login(){
+struct paramStruct* login(){
 	
 	char* clientID = strtok(NULL," ");
 	char* password = strtok(NULL," ");
@@ -54,7 +51,7 @@ int login(){
 	char* serverPort = strtok(NULL," ");
 	if (clientID == NULL || password == NULL || serverIP == NULL || serverPort == NULL) {
 		printf("Incorrect usage: /login <client_id> <password> <server_ip> <server_port>\n");
-		return INVALID_SOCKET;
+		return NULL;
 	}
 
 	int rv, socketfd = INVALID_SOCKET;
@@ -65,7 +62,7 @@ int login(){
 
 	if ((rv = getaddrinfo(serverIP, serverPort, &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		return INVALID_SOCKET;
+		return NULL;
 	}
 
 	for(p = servinfo; p != NULL; p = p->ai_next) {
@@ -83,7 +80,7 @@ int login(){
 	if (p == NULL) {
 		fprintf(stderr, "client: failed to connect from addrinfo\n");
 		close(*socketfd_p);
-		return INVALID_SOCKET;
+		return NULL;
 	}
 
 	char strAddr[INET6_ADDRSTRLEN];
@@ -100,13 +97,13 @@ int login(){
 	if ((send(socketfd, msg, sizeof(struct message), 0)) == -1) {
 		fprintf(stderr, "client: send\n");
 		close(socketfd);
-		return INVALID_SOCKET;
+		return NULL;
 	}
 
 	if ((recv(socketfd, msg, sizeof(struct message), 0)) == -1) {
 		fprintf(stderr, "client: recv\n");
 		close(socketfd);
-		return INVALID_SOCKET;
+		return NULL;
 	}
 	
 	int tempType = msg->type;
@@ -114,57 +111,151 @@ int login(){
 
 	if(tempType == LO_ACK){
 		printf("Login Successful\n");
-		return socketfd;
+
+		struct paramStruct* params = (struct paramStruct*) malloc(sizeof(struct paramStruct)); 
+		params->socketfd = socketfd;
+		params->inSession = false;
+		strncpy(params->clientID,clientID);
+
+		return params;
 	}
 
 	printf("Login Unsuccessful OR Unexpected Packet Received\n");
-	return INVALID_SOCKET;
+	return NULL;
 }
 
-void createSession(int socketfd){
+void enterSession(struct paramStruct* params,int msgType){
 	char* sessionID = strtok(NULL," ");
 
+	if(params == NULL || params->socketfd == INVALID_SOCKET){
+		printf("Please login before creating a session\n");
+		return;
+	}
+	else if(params->inSession){
+		printf("Please leave current session before entering a new one\n");
+		return;
+	}
+
+	struct message* msg = (struct message*) malloc(sizeof(struct message)); 
+	msg->type = msgType;
+	strncpy(msg->source,params->clientID,MAX_NAME);
+	strncpy(msg->data,sessionID,MAX_DATA);
+
+	if(send(params->socketfd, msg, sizeof(struct message), 0) == -1){
+		printf("client: send\n");
+	}
+	free(msg);
+}
+
+void leaveSession(struct paramStruct* params){
+	if(params == NULL || params->socketfd == INVALID_SOCKET){
+		printf("Please login before leaving a session\n");
+		return;
+	}
+	else if(!params->inSession){
+		printf("Please enter a session before leaving one\n");
+		return;
+	}
+
+	struct message* msg = (struct message*) malloc(sizeof(struct message)); 
+	msg->type = LEAVE_SESS;
+	strncpy(msg->source,params->clientID,MAX_NAME);
+
+	params->inSession = false;
+	if(send(params->socketfd, msg, sizeof(struct message), 0) == -1){
+		printf("client: send\n");
+	}
+	free(msg);
+}
+
+void list(struct paramStruct* params){
+	if(params == NULL || params->socketfd == INVALID_SOCKET){
+		printf("Please login before asking for a list\n");
+		return;
+	}
+
+	struct message* msg = (struct message*) malloc(sizeof(struct message)); 
+	msg->type = QUERY;
+	strncpy(msg->source,params->clientID,MAX_NAME);
+
+	if(send(params->socketfd, msg, sizeof(struct message), 0) == -1){
+		printf("client: send\n");
+	}
+	free(msg);
+}
+
+struct paramStruct* logout(struct paramStruct* params,pthread_t* rcvThread){
+	if(params == NULL || params->socketfd == INVALID_SOCKET){
+		printf("Please login before trying to log out\n");
+		return;
+	}
+	pthread_cancel(*rcvThread);
+	return params;
+}
+
+void sendText(struct paramStruct* params,char buf[MAX_DATA]){
+	if(params == NULL || params->socketfd == INVALID_SOCKET){
+		printf("Please login before sending a message\n");
+		return;
+	}
+	else if(!params->inSession){
+		printf("Please enter a session before trying to send a message\n");
+		return;
+	}
+
+	struct message* msg = (struct message*) malloc(sizeof(struct message)); 
+
+	msg->type = MESSAGE;
+	msg->size = strlen(buf);
+	strncpy(msg->source,params->clientID,MAX_NAME);
+	strncpy(msg->data,buf,MAX_DATA);
+
+	if(send(params->socketfd, msg, sizeof(struct message), 0) == -1){
+		printf("client: send\n");
+	}
+	free(msg);
 }
 
 int main(){
 	
-	char buf[MAX_STRING_SIZE];
+	char buf[MAX_DATA];
 	pthread_t rcvThread;
-	int socketfd = INVALID_SOCKET;
+	struct paramStruct* params = NULL; 
 
-	while(fgets(buf,MAX_STRING_SIZE, stdin)){
+	while(fgets(buf,MAX_DATA, stdin)){
 		char* cmd = strtok(buf," ");
 		int tokenLen = strlen(cmd);
 
 		if(strcmp(cmd, LOGIN_CMD) == 0) {
-			socketfd = login();
-			//MAKE RECEIVE FUNCTION
-			if(socketfd != INVALID_SOCKET) pthread_create(&rcvThread, NULL, &receive, socketfd);
-		}
-		else if (strcmp(cmd, LOGOUT_CMD) == 0) {
-			logout(&socketfd);
-		}
-		else if (strcmp(cmd, JOINSESSION_CMD) == 0) {
-			joinSession(cmd, &socketfd);
-		}
-		else if (strcmp(cmd, LEAVESESSION_CMD) == 0) {
-			leaveSession(socketfd);
+			params = login();
+			if(params != NULL && params->socketfd != INVALID_SOCKET) pthread_create(&rcvThread, NULL, &receive, params);
 		}
 		else if (strcmp(cmd, CREATESESSION_CMD) == 0) {
-			createSession(socketfd);
+			enterSession(params,NEW_SESS);
+		}
+		else if (strcmp(cmd, JOINSESSION_CMD) == 0) {
+			enterSession(params,JOIN);
 		}
 		else if (strcmp(cmd, LIST_CMD) == 0) {
-			list(socketfd);
+			list(params);
+		}
+		else if (strcmp(cmd, LEAVESESSION_CMD) == 0) {
+			leaveSession(params);
+		}
+		else if (strcmp(cmd, LOGOUT_CMD) == 0) {
+			free(logout(params,&rcvThread));
+			params = NULL;
 		}
 		else if (strcmp(cmd, QUIT_CMD) == 0) {
-			logout(&socketfd);
 			break;
 		} 
 		else {
 			buf[tokenLen] = ' ';
-			send_text(socketfd);
+			sendText(params,buf);
 		}
 	}
+
 	printf("Quit successfully\n");
+	if(params != NULL) free(params);
 	return 0;
 }

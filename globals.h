@@ -10,7 +10,6 @@
 #include <arpa/inet.h>
 
 #define PORT "3001"
-#define MAX_STRING_SIZE 1024
 #define MAX_NAME 32
 #define MAX_DATA 512
 
@@ -30,6 +29,22 @@ struct message {
 	unsigned char data[MAX_DATA];
 };
 
+struct paramStruct {
+	int socketfd;
+	bool inSession;
+	int clientID[MAX_NAME];
+};
+
+struct user {
+	char username[MAX_NAME];
+	char password[MAX_NAME];
+	bool inLogin;
+
+	int sockfd;
+	unsigned long sessionID;
+	pthread_t p;
+};
+
 enum msgType {
     LOGIN,
     LO_ACK,
@@ -46,4 +61,13 @@ enum msgType {
     QU_ACK
 };
 
-bool inSession = false;
+void* get_in_addr(struct sockaddr *sa);
+
+// get sockaddr, IPv4 or IPv6:
+void* get_in_addr(struct sockaddr *sa) {
+    if (sa->sa_family == AF_INET) {
+        return &(((struct sockaddr_in*)sa)->sin_addr);
+	}
+    return &(((struct sockaddr_in6*)sa)->sin6_addr);
+}
+
