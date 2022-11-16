@@ -44,7 +44,7 @@ int main(int argc, char** argv){
 	}
 	
 	for(p = servinfo; p != NULL; p = p->ai_next){
-		if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1){
+		if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < -1){
 			perror("Server: socket");
 			continue;
 		}
@@ -86,7 +86,9 @@ int main(int argc, char** argv){
 		if(threadCount != TOTAL_LOGINS){
 			int userSockfd;	
 			sin_size = sizeof(their_addr);
-			if(userSockfd = accept(sockfd, (struct sockaddr*)&their_addr, &sin_size) == -1){
+			printf("%d\n",sockfd);
+			userSockfd = accept(sockfd, (struct sockaddr*)&their_addr, &sin_size);
+			if(userSockfd == -1){
 				perror("accept");
 				break;
 			}
@@ -219,6 +221,7 @@ void* clientCallbacks(void* userInfo_p){
 
 				struct sessionNode* temp = userInfo->sessions->head->next;
 				strcpy(userInfo->Users[clientIndx].sessionID,msgRecv->data);
+				strcpy(msgSend->data,msgRecv->data);
 				msgSend->type = NS_ACK;
 			}
 		}
