@@ -14,7 +14,7 @@ int getUserIndex(struct user Users[USER_COUNT],struct message* msg){
 
 int main(int argc, char** argv){
 	//Username and Password List
-	struct users Users[2] = {{"karlovma","12345",false,0,0,0},{"mcint254","12345",false,0,0,0}};
+	struct users Users[2] = {{"karlovma","12345",false,0},{"mcint254","12345",false,0}};
 
 	int port = atoi(argv[1]);
 	int rv, sockfd = INVALID_SOCKET;
@@ -82,6 +82,7 @@ int main(int argc, char** argv){
 			struct userSockStruct* userInfo = (struct userSockStruct*) malloc(sizeof(struct userSockStruct));
 			userInfo->sockfd = userSockfd;
 			userInfo->Users = Users;
+			userInfo->p = &threads[threadCount];
 
 			pthread_create(&threads[threadCount], NULL, clientCallbacks, userInfo)
 			threadCount++;
@@ -115,10 +116,14 @@ void* clientCallbacks(void* userInfo_p){
 				}
 				else if(userInfo->Users[clientIndx].loggedIn){
 					strcpy(msg->data,"Multi Login, that user already logged in");
+					clientIndx = -1;
 					msgSend->type = LO_NAK;
 				}
 				else{
 					//ALL GOOD
+					msgSend->type = LO_ACK;
+					userInfo->Users[clientIndx].loggedIn = true;
+					printf("Logged in user %s\n",msgRecv->username);
 				}
 			}
 			else{

@@ -39,15 +39,13 @@ struct user {
 	char username[MAX_NAME];
 	char password[MAX_NAME];
 	bool loggedIn;
-
-	int sockfd;
 	unsigned long sessionID;
-	pthread_t p;
 };
 
 struct userSockStruct {
 	int sockfd;
 	struct users* Users;
+	pthread_t* p;
 };
 
 enum msgType {
