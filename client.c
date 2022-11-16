@@ -1,4 +1,4 @@
-#include <globals.h>
+#include "globals.h"
 
 //Function prototypes
 struct paramStruct* login();
@@ -10,7 +10,7 @@ void list(struct paramStruct* params);
 void sendText(struct paramStruct* params,char buf[MAX_DATA]);
 
 void receive(void* params_p){
-	struct threadStruct* params = (struct threadStruct*) params_p;
+	struct paramStruct* params = (struct paramStruct*) params_p;
 	struct message* msg = (struct message*) malloc(sizeof(struct message)); 
 
 	while(1){
@@ -48,7 +48,7 @@ struct paramStruct* login(){
 	char* clientID = strtok(NULL," ");
 	char* password = strtok(NULL," ");
 	char* serverIP = strtok(NULL," ");
-	char* serverPort = strtok(NULL," ");
+	char* serverPort = strtok(NULL,"\n");
 	if (clientID == NULL || password == NULL || serverIP == NULL || serverPort == NULL) {
 		printf("Incorrect usage: /login <client_id> <password> <server_ip> <server_port>\n");
 		return NULL;
@@ -79,7 +79,7 @@ struct paramStruct* login(){
 	}
 	if (p == NULL) {
 		fprintf(stderr, "client: failed to connect from addrinfo\n");
-		close(*socketfd_p);
+		close(socketfd);
 		return NULL;
 	}
 
@@ -115,7 +115,7 @@ struct paramStruct* login(){
 		struct paramStruct* params = (struct paramStruct*) malloc(sizeof(struct paramStruct)); 
 		params->socketfd = socketfd;
 		params->inSession = false;
-		strncpy(params->clientID,clientID);
+		strncpy(params->clientID,clientID,MAX_NAME);
 
 		return params;
 	}
