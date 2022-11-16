@@ -12,6 +12,15 @@ int getUserIndex(struct user Users[USER_COUNT],struct message* msg){
 	return -1;
 }
 
+unsigned long hash(unsigned char *str){
+    unsigned long hash = 5381;
+    int c;
+    while (c = *str++){
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+	}
+    return hash;
+}
+
 int main(int argc, char** argv){
 	//Username and Password List
 	struct users Users[2] = {{"karlovma","12345",false,0},{"mcint254","12345",false,0}};
