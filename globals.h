@@ -38,11 +38,16 @@ struct paramStruct {
 struct user {
 	char username[MAX_NAME];
 	char password[MAX_NAME];
-	bool inLogin;
+	bool loggedIn;
 
 	int sockfd;
 	unsigned long sessionID;
 	pthread_t p;
+};
+
+struct userSockStruct {
+	int sockfd;
+	struct users* Users;
 };
 
 enum msgType {
