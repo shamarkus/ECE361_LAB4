@@ -32,10 +32,10 @@ void receive(void* params_p){
 			params->inSession = true;
 		}
 		else if (msg->type == QU_ACK){
-			printf("%s",msg->data);
+			printf("%s\n",msg->data);
 		}
 		else if (msg->type == MESSAGE){
-			printf("%s: %s",msg->source,msg->data);
+			printf("%s:%s\n",msg->source,msg->data);
 		}
 		else{
 			printf("Unexpected packet\n");
@@ -120,12 +120,12 @@ struct paramStruct* login(){
 		return params;
 	}
 
-	printf("Login Unsuccessful OR Unexpected Packet Received\n");
+	printf("Login Unsuccessful OR Unexpected Packet Received: %s\n",msg->data);
 	return NULL;
 }
 
 void enterSession(struct paramStruct* params,int msgType){
-	char* sessionID = strtok(NULL," ");
+	char* sessionID = strtok(NULL,"\n");
 
 	if(params == NULL || params->socketfd == INVALID_SOCKET){
 		printf("Please login before creating a session\n");
@@ -156,7 +156,8 @@ void leaveSession(struct paramStruct* params){
 		printf("Please enter a session before leaving one\n");
 		return;
 	}
-
+	
+	printf("Successfully left session\n");
 	struct message* msg = (struct message*) malloc(sizeof(struct message)); 
 	msg->type = LEAVE_SESS;
 	strncpy(msg->source,params->clientID,MAX_NAME);
@@ -208,6 +209,7 @@ void sendText(struct paramStruct* params,char buf[MAX_DATA]){
 	msg->type = MESSAGE;
 	msg->size = strlen(buf);
 	strncpy(msg->source,params->clientID,MAX_NAME);
+
 	strncpy(msg->data,buf,MAX_DATA);
 
 	if(send(params->socketfd, msg, sizeof(struct message), 0) == -1){
@@ -236,23 +238,29 @@ int main(){
 		else if (strcmp(cmd, JOINSESSION_CMD) == 0) {
 			enterSession(params,JOIN);
 		}
-		else if (strcmp(cmd, LIST_CMD) == 0) {
-			list(params);
+		else{
+			if(cmd[0] == '/') cmd[tokenLen - 1] = '\0';
+
+			if (strcmp(cmd, LIST_CMD) == 0) {
+				list(params);
+			}
+			else if (strcmp(cmd, LEAVESESSION_CMD) == 0) {
+				leaveSession(params);
+			}
+			else if (strcmp(cmd, LOGOUT_CMD) == 0) {
+				free(logout(params,&rcvThread));
+				params = NULL;
+			}
+			else if (strcmp(cmd, QUIT_CMD) == 0) {
+				break;
+			} 
+			else {
+				buf[tokenLen] = ' ';
+				buf[strcspn(buf,"\n")] = 0;
+				sendText(params,buf);
+			}
 		}
-		else if (strcmp(cmd, LEAVESESSION_CMD) == 0) {
-			leaveSession(params);
-		}
-		else if (strcmp(cmd, LOGOUT_CMD) == 0) {
-			free(logout(params,&rcvThread));
-			params = NULL;
-		}
-		else if (strcmp(cmd, QUIT_CMD) == 0) {
-			break;
-		} 
-		else {
-			buf[tokenLen] = ' ';
-			sendText(params,buf);
-		}
+		memset(buf,0,MAX_DATA);
 	}
 
 	printf("Quit successfully\n");

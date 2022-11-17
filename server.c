@@ -9,7 +9,7 @@ void* clientCallbacks(void* userInfo_p);
 
 int getUserIndex(struct user Users[USER_COUNT],struct message* msg){
 	for(int i = 0; i < USER_COUNT; i++){
-		if(!strcmp(Users[i].password,msg->data)) return i;
+		if(!strcmp(Users[i].username,msg->source) && !strcmp(Users[i].password,msg->data)) return i;
 	}
 	return -1;
 }
@@ -112,12 +112,18 @@ int main(int argc, char** argv){
 
 void* clientCallbacks(void* userInfo_p){
 	struct userSockStruct* userInfo = (struct userSockStruct*) userInfo_p;
-	struct message* msgRecv = (struct message*) malloc(sizeof(struct message));
-	struct message* msgSend = (struct message*) malloc(sizeof(struct message));
+//	struct message* msgRecv = (struct message*) malloc(sizeof(struct message));
+//	struct message* msgSend = (struct message*) malloc(sizeof(struct message));
+	struct message msgR, msgS;
+	struct message* msgRecv = &msgR;
+	struct message* msgSend = &msgS;
 	int clientIndx = -1;
 
 	while(1){
 		bool toSend = true;
+		memset(msgRecv, 0, sizeof(struct message));
+		memset(msgSend, 0, sizeof(struct message));
+
 		if(recv(userInfo->sockfd, msgRecv, sizeof(struct message), 0) == -1){
 			perror("error recv\n");
 			exit(1);
@@ -126,7 +132,7 @@ void* clientCallbacks(void* userInfo_p){
 		//CASES
 		if(msgRecv->type == LOGIN){
 			if(clientIndx == -1){
-				if(clientIndx = getUserIndex(userInfo->Users,msgRecv) == -1){
+				if((clientIndx = getUserIndex(userInfo->Users,msgRecv)) == -1){
 					strcpy(msgSend->data,"User login credentials are invalid\n");
 					msgSend->type = LO_NAK;
 				}
@@ -151,6 +157,23 @@ void* clientCallbacks(void* userInfo_p){
 		else if(msgRecv->type == EXIT){
 			userInfo->Users[clientIndx].sessionID[0] = '\0';
 			break;
+		}
+		else if(msgRecv->type == QUERY){
+			char listMsg[MAX_DATA];
+			sprintf(listMsg,"Online Users: ");
+			for(int i = 0; i < USER_COUNT; i++){
+				if(userInfo->Users[i].loggedIn) strcat(strcat(listMsg,userInfo->Users[i].username),", ");
+			}
+
+			strcat(listMsg,"\nAvailable Sessions: ");
+			struct sessionNode* temp = userInfo->sessions->head->next;
+			while(temp != NULL){
+				strcat(strcat(listMsg,temp->sessionID),", ");
+				temp = temp->next;
+			}
+			printf("%s\n",listMsg);
+			strcpy(msgSend->data,listMsg);
+			msgSend->type = QU_ACK;
 		}
 		else if(clientIndx == -1){
 			sprintf(msgSend->data,"%s:Please login first before trying to do something",msgRecv->data);
@@ -197,13 +220,19 @@ void* clientCallbacks(void* userInfo_p){
 					temp = temp->next;
 				}
 				
-				if(temp->next == NULL) prev->next = NULL;
+				//Tail affected
+				if(temp->next == NULL){
+					free(temp);
+					prev->next = NULL;
+					userInfo->sessions->tail = prev;
+				}
+				//Mid List affected
 				else {
 					strcpy(temp->sessionID,temp->next->sessionID);
 					temp->next = temp->next->next;
 				}
 			}
-			userInfo->Users[clientIndx].sessionID[0] == '\0';
+			userInfo->Users[clientIndx].sessionID[0] = '\0';
 		}
 		else if(msgRecv->type == NEW_SESS){
 			if(userInfo->Users[clientIndx].sessionID[0] != '\0'){
@@ -225,28 +254,13 @@ void* clientCallbacks(void* userInfo_p){
 				msgSend->type = NS_ACK;
 			}
 		}
-		else if(msgRecv->type == QUERY){
-			char listMsg[MAX_DATA];
-			sprintf(listMsg,"Online Users: ");
-			for(int i = 0; i < USER_COUNT; i++){
-				if(userInfo->Users[i].loggedIn) strcat(strcat(listMsg,userInfo->Users[i].username),", ");
-			}
-
-			strcat(listMsg,"\nAvailable Sessions: ");
-			struct sessionNode* temp = userInfo->sessions->head->next;
-			while(temp != NULL){
-				strcat(strcat(listMsg,temp->sessionID),", ");
-				temp = temp->next;
-			}
-			strcpy(msgSend->data,listMsg);
-			msgSend->type = QU_ACK;
-		}
 		else if(msgRecv->type == MESSAGE){
 			toSend = false;
 
 			strcpy(msgSend->source,msgRecv->source);
 			strcpy(msgSend->data,msgRecv->data);
 			msgSend->type = MESSAGE;
+			printf("%s:%s\n",msgRecv->source,msgRecv->data);
 
 			for(int i = 0; i < USER_COUNT; i++){
 				if(i != clientIndx){
@@ -261,13 +275,12 @@ void* clientCallbacks(void* userInfo_p){
 		}
 
 		if(toSend){
-			if(send(userInfo->Users[clientIndx].sockfd,msgSend,sizeof(struct message),0) == -1){
+			if(send(userInfo->sockfd,msgSend,sizeof(struct message),0) == -1){
 				perror("error send\n");
 				exit(1);
 			}
 		}
 	}
-
 	return NULL;
 }
 
