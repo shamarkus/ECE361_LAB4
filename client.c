@@ -190,6 +190,17 @@ struct paramStruct* logout(struct paramStruct* params,pthread_t* rcvThread){
 		printf("Please login before trying to log out\n");
 		return;
 	}
+
+	if(params->inSession) leaveSession(params);
+
+	struct message* msg = (struct message*) malloc(sizeof(struct message)); 
+	msg->type = EXIT;
+	strncpy(msg->source,params->clientID,MAX_NAME);
+
+	if(send(params->socketfd, msg, sizeof(struct message), 0) == -1){
+		printf("client: send\n");
+	}
+	free(msg);
 	pthread_cancel(*rcvThread);
 	return params;
 }
@@ -229,8 +240,11 @@ int main(){
 		int tokenLen = strlen(cmd);
 
 		if(strcmp(cmd, LOGIN_CMD) == 0) {
-			params = login();
-			if(params != NULL && params->socketfd != INVALID_SOCKET) pthread_create(&rcvThread, NULL, &receive, params);
+			if(params == NULL){
+				params = login();
+				if(params != NULL && params->socketfd != INVALID_SOCKET) pthread_create(&rcvThread, NULL, &receive, params);
+			}
+			else printf("Please logout of current account before attempting to login\n");
 		}
 		else if (strcmp(cmd, CREATESESSION_CMD) == 0) {
 			enterSession(params,NEW_SESS);
@@ -252,6 +266,7 @@ int main(){
 				params = NULL;
 			}
 			else if (strcmp(cmd, QUIT_CMD) == 0) {
+				if(params != NULL) free(logout(params,&rcvThread));
 				break;
 			} 
 			else {
@@ -264,6 +279,5 @@ int main(){
 	}
 
 	printf("Quit successfully\n");
-	if(params != NULL) free(params);
 	return 0;
 }

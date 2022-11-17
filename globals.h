@@ -50,7 +50,7 @@ struct user {
 struct userSockStruct {
 	struct user* Users;
 	struct sessionLL* sessions;
-	pthread_t* p;
+	pthread_t p;
 	int sockfd;
 };
 

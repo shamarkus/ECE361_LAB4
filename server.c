@@ -74,53 +74,47 @@ int main(int argc, char** argv){
 
 	char s[INET6_ADDRSTRLEN];
 
-	int threadCount = 0;
-	pthread_t *threads = (pthread_t*) malloc(TOTAL_LOGINS * sizeof(pthread_t));
-
 	struct sessionLL* sessions = (struct sessionLL*) malloc(sizeof(struct sessionLL));
 	sessions->head = (struct sessionNode*) malloc(sizeof(struct sessionNode));
 	sessions->tail = sessions->head;
 	strcpy(sessions->head->sessionID,"\0");
 	sessions->head->next = NULL;
+
 	while(1){
-		if(threadCount != TOTAL_LOGINS){
-			int userSockfd;	
-			sin_size = sizeof(their_addr);
-			printf("%d\n",sockfd);
-			userSockfd = accept(sockfd, (struct sockaddr*)&their_addr, &sin_size);
-			if(userSockfd == -1){
-				perror("accept");
-				break;
-			}
+		int userSockfd;	
+		pthread_t p;
+		sin_size = sizeof(their_addr);
 
-			inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof(s));
-			printf("Server: got connection from %s\n", s);
-
-			struct userSockStruct* userInfo = (struct userSockStruct*) malloc(sizeof(struct userSockStruct));
-			userInfo->sockfd = userSockfd;
-			userInfo->Users = Users;
-			userInfo->p = &threads[threadCount];
-			userInfo->sessions = sessions;
-			printf("%d\n",userSockfd);
-			pthread_create(&threads[threadCount], NULL, clientCallbacks, userInfo);
-			threadCount++;
+		userSockfd = accept(sockfd, (struct sockaddr*)&their_addr, &sin_size);
+		if(userSockfd == -1){
+			perror("accept");
+			break;
 		}
-	}
 
+		inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof(s));
+		printf("Server: got connection from %s\n", s);
+
+		struct userSockStruct* userInfo = (struct userSockStruct*) malloc(sizeof(struct userSockStruct));
+
+		userInfo->sockfd = userSockfd;
+		userInfo->Users = Users;
+		userInfo->p = p;
+		userInfo->sessions = sessions;
+		
+		pthread_create(&p, NULL, clientCallbacks, userInfo);
+	}
 	return 0;
 }
 
 void* clientCallbacks(void* userInfo_p){
 	struct userSockStruct* userInfo = (struct userSockStruct*) userInfo_p;
-//	struct message* msgRecv = (struct message*) malloc(sizeof(struct message));
-//	struct message* msgSend = (struct message*) malloc(sizeof(struct message));
 	struct message msgR, msgS;
 	struct message* msgRecv = &msgR;
 	struct message* msgSend = &msgS;
 	int clientIndx = -1;
 
 	while(1){
-		bool toSend = true;
+		bool toSend = true, toExit = false;
 		memset(msgRecv, 0, sizeof(struct message));
 		memset(msgSend, 0, sizeof(struct message));
 
@@ -130,33 +124,38 @@ void* clientCallbacks(void* userInfo_p){
 		}
 
 		//CASES
+		//Client-side takes care of corner cases
+		//Login attempt to user that has already logged in --> drop socket, and thread exit
 		if(msgRecv->type == LOGIN){
-			if(clientIndx == -1){
-				if((clientIndx = getUserIndex(userInfo->Users,msgRecv)) == -1){
-					strcpy(msgSend->data,"User login credentials are invalid\n");
-					msgSend->type = LO_NAK;
-				}
-				else if(userInfo->Users[clientIndx].loggedIn){
-					strcpy(msgSend->data,"Multi Login, that user already logged in");
-					clientIndx = -1;
-					msgSend->type = LO_NAK;
-				}
-				else{
-					//ALL GOOD
-					msgSend->type = LO_ACK;
-					userInfo->Users[clientIndx].loggedIn = true;
-					userInfo->Users[clientIndx].sockfd = userInfo->sockfd;
-					printf("Logged in user %s\n",userInfo->Users[clientIndx].username);
-				}
+			if((clientIndx = getUserIndex(userInfo->Users,msgRecv)) == -1){
+				strcpy(msgSend->data,"User login credentials are invalid\n");
+				msgSend->type = LO_NAK;
+
+				toExit = true;
+			}
+			else if(userInfo->Users[clientIndx].loggedIn){
+				strcpy(msgSend->data,"Multi Login, that user already logged in");
+				clientIndx = -1;
+				msgSend->type = LO_NAK;
+
+				toExit = true;
 			}
 			else{
-				strcpy(msgSend->data,"Please logout first before trying to log in");
-				msgSend->type = LO_NAK;
+				//ALL GOOD
+				//adjust pthread array based on clientIndx
+
+				msgSend->type = LO_ACK;
+				userInfo->Users[clientIndx].loggedIn = true;
+				userInfo->Users[clientIndx].sockfd = userInfo->sockfd;
+				printf("Logged in user %s\n",userInfo->Users[clientIndx].username);
 			}
 		}
 		else if(msgRecv->type == EXIT){
 			userInfo->Users[clientIndx].sessionID[0] = '\0';
-			break;
+			
+			if(clientIndx != -1) userInfo->Users[clientIndx].loggedIn = false;
+			toSend = false;
+			toExit = true;
 		}
 		else if(msgRecv->type == QUERY){
 			char listMsg[MAX_DATA];
@@ -280,7 +279,11 @@ void* clientCallbacks(void* userInfo_p){
 				exit(1);
 			}
 		}
+
+		if(toExit){
+			close(userInfo->sockfd);
+			pthread_exit(userInfo);
+		}
 	}
-	return NULL;
 }
 
