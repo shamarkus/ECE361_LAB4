@@ -1,14 +1,14 @@
 #include "globals.h"
 
-#define USER_COUNT 2
+#define USER_COUNT 3
 #define TOTAL_LOGINS 10
 
-int getUserIndex(struct user Users[USER_COUNT],struct message* msg);
+int getUserIndex(struct user* Users,int userCount,struct message* msg);
 unsigned long hash(unsigned char *str);
 void* clientCallbacks(void* userInfo_p);
 
-int getUserIndex(struct user Users[USER_COUNT],struct message* msg){
-	for(int i = 0; i < USER_COUNT; i++){
+int getUserIndex(struct user* Users,int userCount,struct message* msg){
+	for(int i = 0; i < userCount; i++){
 		if(!strcmp(Users[i].username,msg->source) && !strcmp(Users[i].password,msg->data)) return i;
 	}
 	return -1;
@@ -25,7 +25,13 @@ unsigned long hash(unsigned char *str){
 
 int main(int argc, char** argv){
 	//Username and Password List
-	struct user Users[2] = {{"karlovma","12345",false,"\0",-1},{"mcint254","12345",false,"\0",-1}};
+	struct user Users[3] = {
+		{"karlovma","12345",false,"\0",-1},
+		{"mcint254","12345",false,"\0",-1},
+		{"amanigillings","12345",false,"\0",-1}
+		};
+	
+	int userCount = sizeof(Users)/sizeof(Users[0]);
 
 	int rv, sockfd = INVALID_SOCKET;
 	int yes = 1;
@@ -66,7 +72,7 @@ int main(int argc, char** argv){
 		exit(1);
 	}
 
-	if(listen(sockfd,USER_COUNT) == -1){
+	if(listen(sockfd,userCount) == -1){
 		perror("listen");
 		exit(1);
 	}
@@ -100,6 +106,7 @@ int main(int argc, char** argv){
 		userInfo->Users = Users;
 		userInfo->p = p;
 		userInfo->sessions = sessions;
+		userInfo->userCount = userCount;
 		
 		pthread_create(&p, NULL, clientCallbacks, userInfo);
 	}
@@ -127,7 +134,7 @@ void* clientCallbacks(void* userInfo_p){
 		//Client-side takes care of corner cases
 		//Login attempt to user that has already logged in --> drop socket, and thread exit
 		if(msgRecv->type == LOGIN){
-			if((clientIndx = getUserIndex(userInfo->Users,msgRecv)) == -1){
+			if((clientIndx = getUserIndex(userInfo->Users,userInfo->userCount,msgRecv)) == -1){
 				strcpy(msgSend->data,"User login credentials are invalid\n");
 				msgSend->type = LO_NAK;
 
@@ -160,7 +167,7 @@ void* clientCallbacks(void* userInfo_p){
 		else if(msgRecv->type == QUERY){
 			char listMsg[MAX_DATA];
 			sprintf(listMsg,"Online Users: ");
-			for(int i = 0; i < USER_COUNT; i++){
+			for(int i = 0; i < userInfo->userCount; i++){
 				if(userInfo->Users[i].loggedIn) strcat(strcat(listMsg,userInfo->Users[i].username),", ");
 			}
 
@@ -205,7 +212,7 @@ void* clientCallbacks(void* userInfo_p){
 			toSend = false;
 			//CHECK IF ANONE ELSE IN LIST
 			bool isAnyone = false;
-			for(int i = 0; i < USER_COUNT; i++){
+			for(int i = 0; i < userInfo->userCount; i++){
 				if(i != clientIndx){
 					if(!strcmp(userInfo->Users[i].sessionID,userInfo->Users[clientIndx].sessionID)) isAnyone = true;
 				}
@@ -261,7 +268,7 @@ void* clientCallbacks(void* userInfo_p){
 			msgSend->type = MESSAGE;
 			printf("%s:%s\n",msgRecv->source,msgRecv->data);
 
-			for(int i = 0; i < USER_COUNT; i++){
+			for(int i = 0; i < userInfo->userCount; i++){
 				if(i != clientIndx){
 					if(!strcmp(userInfo->Users[i].sessionID,userInfo->Users[clientIndx].sessionID)){
 						if(send(userInfo->Users[i].sockfd,msgSend,sizeof(struct message),0) == -1){

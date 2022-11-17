@@ -52,6 +52,7 @@ struct userSockStruct {
 	struct sessionLL* sessions;
 	pthread_t p;
 	int sockfd;
+	int userCount;
 };
 
 struct sessionLL{
