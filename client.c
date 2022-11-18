@@ -37,11 +37,15 @@ void receive(void* params_p){
 		else if (msg->type == MESSAGE){
 			printf("%s:%s\n",msg->source,msg->data);
 		}
+		else if (msg->type == NU_ACK){
+			printf("Successfully created new user with username,password:%s\n",msg->data);
+		}
 		else{
 			printf("Unexpected packet\n");
 		}
 	}
 }
+
 
 struct paramStruct* login(){
 	
@@ -185,6 +189,90 @@ void list(struct paramStruct* params){
 	free(msg);
 }
 
+void createUser(struct paramStruct* params){
+	
+	char* clientID = strtok(NULL," ");
+	char* password = strtok(NULL,"\n");
+
+	if (clientID == NULL || password == NULL){
+		printf("Incorrect usage: /login <client_id> <password> \n");
+		return NULL;
+	}
+
+	if (params == NULL){
+		printf("Enter <server_ip> <server_port> \n");
+
+		char serverIP[MAX_DATA];
+		char serverPort[MAX_DATA];
+
+		scanf("%s %s",serverIP,serverPort);
+
+		// create a temp socket
+		int rv, socketfd = INVALID_SOCKET;
+		struct addrinfo hints, *servinfo, *p;
+		memset(&hints, 0, sizeof hints);
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_STREAM;
+
+		if ((rv = getaddrinfo(serverIP, serverPort, &hints, &servinfo)) != 0) {
+			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+			return NULL;
+		}
+
+		for(p = servinfo; p != NULL; p = p->ai_next) {
+			if ((socketfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+				fprintf(stderr ,"client: socket\n");
+				continue;
+			}
+			if (connect(socketfd, p->ai_addr, p->ai_addrlen) == -1) {
+				close(socketfd);
+				fprintf(stderr, "client: connect\n");
+				continue;
+			}
+			break; 
+		}
+		if (p == NULL) {
+			fprintf(stderr, "client: failed to connect from addrinfo\n");
+			close(socketfd);
+			return NULL;
+		}
+
+		char strAddr[INET6_ADDRSTRLEN];
+		inet_ntop(p->ai_family, get_in_addr((struct sockaddr*)p->ai_addr), strAddr, sizeof strAddr);
+		printf("client: connecting to %s\n", strAddr);
+		freeaddrinfo(servinfo); // all done with this structure
+
+		struct message* msg = (struct message*) malloc(sizeof(struct message)); 
+		msg->type = NEW_USER;
+		strncpy(msg->source,clientID,MAX_NAME);
+		strncpy(msg->data,password,MAX_NAME);
+
+		if ((send(socketfd, msg, sizeof(struct message), 0)) == -1) {
+			fprintf(stderr, "client: send\n");
+			close(socketfd);
+			return NULL;
+		}
+
+		if ((recv(socketfd, msg, sizeof(struct message), 0)) == -1) {
+			fprintf(stderr, "client: recv\n");
+			close(socketfd);
+			return NULL;
+		}
+	
+		free(msg);
+	}
+
+	struct message* msg = (struct message*) malloc(sizeof(struct message)); 
+	msg->type = NEW_USER;
+	strncpy(msg->source,clientID,MAX_NAME);
+	strncpy(msg->data,password,MAX_NAME);
+
+	if(send(params->socketfd, msg, sizeof(struct message), 0) == -1){
+		printf("client: send\n");
+	}
+	free(msg);
+}
+
 struct paramStruct* logout(struct paramStruct* params,pthread_t* rcvThread){
 	if(params == NULL || params->socketfd == INVALID_SOCKET){
 		printf("Please login before trying to log out\n");
@@ -251,6 +339,9 @@ int main(){
 		}
 		else if (strcmp(cmd, JOINSESSION_CMD) == 0) {
 			enterSession(params,JOIN);
+		}
+		else if (strcmp(cmd, NEWUSER_CMD) == 0){
+			createUser(params);
 		}
 		else{
 			if(cmd[0] == '/') cmd[tokenLen - 1] = '\0';

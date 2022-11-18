@@ -23,6 +23,7 @@
 #define CREATESESSION_CMD "/createsession"
 #define LIST_CMD "/list"
 #define QUIT_CMD "/quit"
+#define NEWUSER_CMD "/createuser"
 
 //Struct Definitions
 struct user;
@@ -78,7 +79,9 @@ enum msgType {
     NS_ACK,
     MESSAGE,
     QUERY,
-    QU_ACK
+    QU_ACK,
+	NEW_USER,
+	NU_ACK
 };
 
 void* get_in_addr(struct sockaddr *sa);

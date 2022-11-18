@@ -2,6 +2,7 @@
 
 #define USER_COUNT 3
 #define TOTAL_LOGINS 10
+#define MAX_USERS 10
 
 int getUserIndex(struct user* Users,int userCount,struct message* msg);
 unsigned long hash(unsigned char *str);
@@ -23,15 +24,64 @@ unsigned long hash(unsigned char *str){
     return hash;
 }
 
+struct user* getUsers(char* inFile){
+	char lines[MAX_DATA][MAX_DATA]; // [MAX_LINES][MAX_CHARS_IN_LINE]
+	
+	FILE *file;
+	file = fopen("users.txt", "r");
+	int line = 0;
+  
+	while (!feof(file) && !ferror(file))
+		
+		if (fgets(lines[line], MAX_DATA, file) != NULL){
+			line++;
+		}
+		
+	
+	fclose(file);
+	
+	struct user *Users = malloc(sizeof(struct user) * MAX_USERS);
+	for (int i = 0; i < line; i++){
+		// printf("line: %s\n", lines[i]);
+		char* clientID = strtok(lines[i],",");
+		char* password = strtok(NULL,",");
+
+		strcpy(Users[i].username, clientID);
+		strcpy(Users[i].password, password);
+		strcpy(Users[i].sessionID, "\0");
+		Users[i].loggedIn = false;
+		Users[i].sockfd = -1;
+	}
+	return Users;
+}
+
+getUserCount(char* inFile){
+	char lines[MAX_DATA][MAX_DATA]; // [MAX_LINES][MAX_CHARS_IN_LINE]
+	
+	FILE *file;
+	file = fopen("users.txt", "r");
+	int line = 0;
+  
+	while (!feof(file) && !ferror(file))
+		
+		if (fgets(lines[line], MAX_DATA, file) != NULL){
+			line++;
+		}
+		
+	
+	fclose(file);
+	return line;
+}
+
 int main(int argc, char** argv){
 	//Username and Password List
-	struct user Users[3] = {
-		{"karlovma","12345",false,"\0",-1},
-		{"mcint254","12345",false,"\0",-1},
-		{"amanigillings","12345",false,"\0",-1}
-		};
-	
-	int userCount = sizeof(Users)/sizeof(Users[0]);
+	struct user* Users = getUsers("users.txt");
+	// struct user Users[3] = {
+	// 	{"karlovma","12345",false,"\0",-1},
+	// 	{"mcint254","12345",false,"\0",-1},
+	// 	{"amanigillings","12345",false,"\0",-1}
+	// 	};
+	int userCount = getUserCount("users.txt");
 
 	int rv, sockfd = INVALID_SOCKET;
 	int yes = 1;
@@ -132,8 +182,33 @@ void* clientCallbacks(void* userInfo_p){
 
 		//CASES
 		//Client-side takes care of corner cases
+		if (msgRecv->type == NEW_USER){
+			msgSend->type = NU_ACK;
+			char newLine[MAX_DATA] = "\n";
+			strcat(newLine, msgRecv->source);
+			strcat(newLine,",");
+			strcat(newLine,msgRecv->data);
+			strcpy(msgSend->data, newLine);
+			strcat(newLine,",");
+
+			FILE *file;
+			file = fopen("users.txt", "a");
+			fputs(newLine, file);
+			fclose(file);
+
+			strcpy(userInfo->Users[userInfo->userCount].username, msgRecv->source);
+			strcpy(userInfo->Users[userInfo->userCount].password, msgRecv->data);
+			strcpy(userInfo->Users[userInfo->userCount].sessionID, "\0");
+			userInfo->Users[userInfo->userCount].loggedIn = false;
+			userInfo->Users[userInfo->userCount].sockfd = -1;
+
+			userInfo->userCount += 1;
+			printf("Created new user: %s\n", msgRecv->source);
+			printf("Please login");
+
+		}
 		//Login attempt to user that has already logged in --> drop socket, and thread exit
-		if(msgRecv->type == LOGIN){
+		else if(msgRecv->type == LOGIN){
 			if((clientIndx = getUserIndex(userInfo->Users,userInfo->userCount,msgRecv)) == -1){
 				strcpy(msgSend->data,"User login credentials are invalid\n");
 				msgSend->type = LO_NAK;
