@@ -271,10 +271,11 @@ struct paramStruct* createUser(struct paramStruct* params){
 		temp_params->inSession = false;
 		strncpy(temp_params->clientID,clientID,MAX_NAME);
 
-		
-
-	return temp_params;
+		return temp_params;
 	}
+	// duplicate
+	printf("User already exists\n");
+	return NULL;
 }
 
 struct paramStruct* logout(struct paramStruct* params,pthread_t* rcvThread){

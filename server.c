@@ -184,26 +184,32 @@ void* clientCallbacks(void* userInfo_p){
 		//CASES
 		//Client-side takes care of corner cases
 		if (msgRecv->type == NEW_USER){
-			msgSend->type = NU_ACK;
-			char newLine[MAX_DATA] = "\n";
-			strcat(newLine, msgRecv->source);
-			strcat(newLine,",");
-			strcat(newLine,msgRecv->data);
-			strcpy(msgSend->data, newLine);
-			strcat(newLine,",");
+			if (getUserIndex(userInfo->Users,userInfo->userCount,msgRecv) == -1){ // no duplicates
+				msgSend->type = NU_ACK;
+				char newLine[MAX_DATA] = "\n";
+				strcat(newLine, msgRecv->source);
+				strcat(newLine,",");
+				strcat(newLine,msgRecv->data);
+				strcpy(msgSend->data, newLine);
+				strcat(newLine,",");
 
-			FILE *file;
-			file = fopen("users.txt", "a");
-			fputs(newLine, file);
-			fclose(file);
+				FILE *file;
+				file = fopen("users.txt", "a");
+				fputs(newLine, file);
+				fclose(file);
 
-			strcpy(userInfo->Users[userInfo->userCount].username, msgRecv->source);
-			strcpy(userInfo->Users[userInfo->userCount].password, msgRecv->data);
-			strcpy(userInfo->Users[userInfo->userCount].sessionID, "\0");
-			userInfo->Users[userInfo->userCount].loggedIn = false;
-			userInfo->Users[userInfo->userCount].sockfd = -1;
-			printf("Created new user: %s\n",userInfo->Users[userInfo->userCount].username);;
-			// printf("Created new user: %s\n", msgRecv->source);
+				strcpy(userInfo->Users[userInfo->userCount].username, msgRecv->source);
+				strcpy(userInfo->Users[userInfo->userCount].password, msgRecv->data);
+				strcpy(userInfo->Users[userInfo->userCount].sessionID, "\0");
+				userInfo->Users[userInfo->userCount].loggedIn = false;
+				userInfo->Users[userInfo->userCount].sockfd = -1;
+				printf("Created new user: %s\n",userInfo->Users[userInfo->userCount].username);
+				// printf("Created new user: %s\n", msgRecv->source);
+			}
+			else{
+				msgSend->type = NU_NAK;
+				printf("Could not create new user: %s\n",msgRecv->source);
+			}
 		}
 		//Login attempt to user that has already logged in --> drop socket, and thread exit
 		else if(msgRecv->type == LOGIN){

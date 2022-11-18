@@ -81,7 +81,8 @@ enum msgType {
     QUERY,
     QU_ACK,
 	NEW_USER,
-	NU_ACK
+	NU_ACK,
+	NU_NAK
 };
 
 void* get_in_addr(struct sockaddr *sa);
