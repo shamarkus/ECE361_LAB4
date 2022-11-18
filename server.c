@@ -171,6 +171,7 @@ void* clientCallbacks(void* userInfo_p){
 	int clientIndx = -1;
 
 	while(1){
+		userInfo->userCount = userInfo->userCount = getUserCount("users.txt");
 		bool toSend = true, toExit = false;
 		memset(msgRecv, 0, sizeof(struct message));
 		memset(msgSend, 0, sizeof(struct message));
@@ -201,11 +202,8 @@ void* clientCallbacks(void* userInfo_p){
 			strcpy(userInfo->Users[userInfo->userCount].sessionID, "\0");
 			userInfo->Users[userInfo->userCount].loggedIn = false;
 			userInfo->Users[userInfo->userCount].sockfd = -1;
-
-			userInfo->userCount += 1;
-			printf("Created new user: %s\n", msgRecv->source);
-			printf("Please login");
-
+			printf("Created new user: %s\n",userInfo->Users[userInfo->userCount].username);;
+			// printf("Created new user: %s\n", msgRecv->source);
 		}
 		//Login attempt to user that has already logged in --> drop socket, and thread exit
 		else if(msgRecv->type == LOGIN){
