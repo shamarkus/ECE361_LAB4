@@ -354,9 +354,9 @@ int main(){
 				free(logout(temp,&rcvThread));
 				temp = NULL;
 				//login
-				cmd = strtok(buf_copy," ");
-				params = login();
-				if(params != NULL && params->socketfd != INVALID_SOCKET) pthread_create(&rcvThread, NULL, &receive, params);
+				// cmd = strtok(buf_copy," ");
+				// params = login();
+				// if(params != NULL && params->socketfd != INVALID_SOCKET) pthread_create(&rcvThread, NULL, &receive, params);
 			}
 		}
 		else{

@@ -171,7 +171,7 @@ void* clientCallbacks(void* userInfo_p){
 	int clientIndx = -1;
 
 	while(1){
-		userInfo->userCount = userInfo->userCount = getUserCount("users.txt");
+		userInfo->userCount = getUserCount("users.txt");
 		bool toSend = true, toExit = false;
 		memset(msgRecv, 0, sizeof(struct message));
 		memset(msgSend, 0, sizeof(struct message));
@@ -184,7 +184,12 @@ void* clientCallbacks(void* userInfo_p){
 		//CASES
 		//Client-side takes care of corner cases
 		if (msgRecv->type == NEW_USER){
-			if (getUserIndex(userInfo->Users,userInfo->userCount,msgRecv) == -1){ // no duplicates
+			bool userFound = false;
+			for(int i = 0; i < userInfo->userCount; i++){
+				if(!strcmp(userInfo->Users[i].username,msgRecv->source))
+				userFound = true;
+			}
+			if (!userFound){ // no duplicates
 				msgSend->type = NU_ACK;
 				char newLine[MAX_DATA] = "\n";
 				strcat(newLine, msgRecv->source);
