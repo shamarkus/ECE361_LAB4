@@ -48,7 +48,7 @@ struct user* getUsers(char* inFile){
 
 		strcpy(Users[i].username, clientID);
 		strcpy(Users[i].password, password);
-		strcpy(Users[i].sessionID, "\0");
+		Users[i].sessionID[0] = "\0";
 		Users[i].loggedIn = false;
 		Users[i].sockfd = -1;
 	}
@@ -205,7 +205,7 @@ void* clientCallbacks(void* userInfo_p){
 
 				strcpy(userInfo->Users[userInfo->userCount].username, msgRecv->source);
 				strcpy(userInfo->Users[userInfo->userCount].password, msgRecv->data);
-				strcpy(userInfo->Users[userInfo->userCount].sessionID, "\0");
+				strcpy(userInfo->Users[userInfo->userCount].sessionID,"\0");
 				userInfo->Users[userInfo->userCount].loggedIn = false;
 				userInfo->Users[userInfo->userCount].sockfd = -1;
 				printf("Created new user: %s\n",userInfo->Users[userInfo->userCount].username);
@@ -214,6 +214,58 @@ void* clientCallbacks(void* userInfo_p){
 			else{
 				msgSend->type = NU_NAK;
 				printf("Could not create new user: %s\n",msgRecv->source);
+			}
+		}
+		else if (msgRecv->type == PM){
+			char data[MAX_DATA];
+			char* response;
+			char newsrc[MAX_NAME];
+			char* reciever;
+
+
+			strcpy(data, msgRecv->data);
+			reciever = strtok(data, " ");
+			response = strtok(NULL, "\n");
+
+			// printf("reciever: %s\n", reciever);
+			// printf("data: %s\n", response);
+
+			bool userFound = false;
+			int i = 0;
+			for(i; i < userInfo->userCount; i++){
+				if(!strcmp(userInfo->Users[i].username,reciever)){
+					userFound = true;
+					break;
+				}
+			}
+			// printf("found: %d\n", userFound);
+			if(!userFound){ // reciever does not exist
+				sprintf(response, "User %s does not exist", reciever);
+				strcpy(msgSend->data, response);
+				msgSend->type = PM_NAK;
+			}
+			else if (!(userInfo->Users[i].loggedIn)){ //reciever not logged in
+				sprintf(response, "User %s not logged in", reciever);
+				strcpy(msgSend->data, response);
+				msgSend->type = PM_NAK;
+			}
+			else if (strcmp(userInfo->Users[i].username,msgRecv->source) == 0){
+				sprintf(response, "Cannot private message yourself");
+				strcpy(msgSend->data, response);
+				msgSend->type = PM_NAK;
+			}
+			else{ // user exists and logged in
+				strcpy(msgSend->data, response);
+				strcpy(msgSend->source, msgRecv->source);
+				msgSend->type = PM;
+
+				// send message to reciever
+				if(send(userInfo->Users[i].sockfd,msgSend,sizeof(struct message),0) == -1){
+					perror("error send\n");
+					exit(1);
+				}
+				sprintf(newsrc, "To %s", reciever);
+				strcpy(msgSend->source, newsrc);
 			}
 		}
 		//Login attempt to user that has already logged in --> drop socket, and thread exit
@@ -242,9 +294,9 @@ void* clientCallbacks(void* userInfo_p){
 			}
 		}
 		else if(msgRecv->type == EXIT){
-			userInfo->Users[clientIndx].sessionID[0] = '\0';
+			userInfo->Users[clientIndx].sessionID[0] = "\0";
 			
-			if(clientIndx != -1) userInfo->Users[clientIndx].loggedIn = false;
+			if(clientIndx != -1) userInfo->Users[clientIndx].loggedIn = 0;
 			toSend = false;
 			toExit = true;
 		}
@@ -271,34 +323,36 @@ void* clientCallbacks(void* userInfo_p){
 		}
 		else if(msgRecv->type == JOIN){
 			
-			if(userInfo->Users[clientIndx].sessionID[0] != '\0'){
-				sprintf(msgSend->data,"%s: Leave current Session before trying to join another one",msgRecv->data);
+			// if(userInfo->Users[clientIndx].sessionID[0] != '\0'){
+			// 	sprintf(msgSend->data,"%s: Leave current Session before trying to join another one",msgRecv->data);
+			// 	msgSend->type = JN_NAK;	
+			// }
+			
+			struct sessionNode* temp = userInfo->sessions->head->next;
+			while(temp != NULL && strcmp(temp->sessionID,msgRecv->data)){
+				temp = temp->next;
+			}
+
+			if(temp == NULL){
+				sprintf(msgSend->data,"%s: Invalid session ID",msgRecv->data);
 				msgSend->type = JN_NAK;	
 			}
 			else{
-				struct sessionNode* temp = userInfo->sessions->head->next;
-				while(temp != NULL && strcmp(temp->sessionID,msgRecv->data)){
-					temp = temp->next;
-				}
-
-				if(temp == NULL){
-					sprintf(msgSend->data,"%s: Invalid session ID",msgRecv->data);
-					msgSend->type = JN_NAK;	
-				}
-				else{
-					strcpy(msgSend->data,msgRecv->data);
-					strcpy(userInfo->Users[clientIndx].sessionID,msgRecv->data);
-					msgSend->type = JN_ACK;
-				}
+				strcpy(msgSend->data,msgRecv->data);
+				strcpy(userInfo->Users[clientIndx].sessionID,msgRecv->data);
+				msgSend->type = JN_ACK;
 			}
-		}
+	}
 		else if(msgRecv->type == LEAVE_SESS){
 			toSend = false;
 			//CHECK IF ANONE ELSE IN LIST
 			bool isAnyone = false;
 			for(int i = 0; i < userInfo->userCount; i++){
 				if(i != clientIndx){
-					if(!strcmp(userInfo->Users[i].sessionID,userInfo->Users[clientIndx].sessionID)) isAnyone = true;
+					if(!strcmp(userInfo->Users[i].sessionID,msgRecv->data)){
+							isAnyone = true;
+							break;
+					}
 				}
 			}
 			//IF NOONE, DLEETE NODE FROM LIST

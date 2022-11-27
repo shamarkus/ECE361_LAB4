@@ -24,6 +24,7 @@
 #define LIST_CMD "/list"
 #define QUIT_CMD "/quit"
 #define NEWUSER_CMD "/createuser"
+#define PRIVATEMSG_CMD "/pm"
 
 //Struct Definitions
 struct user;
@@ -37,7 +38,7 @@ struct message {
 struct paramStruct {
 	int socketfd;
 	bool inSession;
-	int clientID[MAX_NAME];
+	char clientID[MAX_NAME];
 };
 
 struct user {
@@ -82,7 +83,9 @@ enum msgType {
     QU_ACK,
 	NEW_USER,
 	NU_ACK,
-	NU_NAK
+	NU_NAK,
+	PM,
+	PM_NAK
 };
 
 void* get_in_addr(struct sockaddr *sa);

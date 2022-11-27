@@ -40,6 +40,12 @@ void receive(void* params_p){
 		else if (msg->type == NU_ACK){
 			printf("Successfully created new user with username,password:%s\n",msg->data);
 		}
+		else if (msg->type == PM){
+			printf("[PRIVATE] %s: %s\n", msg->source, msg->data);
+		}
+		else if (msg->type == PM_NAK){
+			printf("%s\n", msg->data);
+		}
 		else{
 			printf("Unexpected packet\n");
 		}
@@ -200,7 +206,7 @@ struct paramStruct* createUser(struct paramStruct* params){
 	if (clientID == NULL || password == NULL || serverIP == NULL || serverPort == NULL) {
 		printf("Incorrect usage: /createuser <client_id> <password> <server_ip> <server_port>\n");
 		return NULL;
-	}
+	} 
 
 	if (params != NULL){
 		printf("Please logout before trying to create a new user\n");
@@ -322,6 +328,39 @@ void sendText(struct paramStruct* params,char buf[MAX_DATA]){
 	free(msg);
 }
 
+void private_msg(struct paramStruct* params){
+	if(params == NULL || params->socketfd == INVALID_SOCKET){
+		printf("Please login before sending a private message\n");
+		return;
+	}
+
+	char* reciever = strtok(NULL," ");
+	char* message = strtok(NULL, "\n");
+	char data[MAX_DATA];
+
+	// printf("%s: %s\n", reciever, message);
+
+	if (reciever == NULL || message == NULL){
+		printf("Incorrect usage: /pm <clientID> <msg>\n");
+		return;
+	}
+
+	sprintf(data, "%s %s\n",reciever, message);
+
+	struct message* msg = (struct message*) malloc(sizeof(struct message)); 
+
+	msg->type = PM;
+	msg->size = strlen(msg);
+
+	strncpy(msg->source,params->clientID,MAX_NAME);
+	strncpy(msg->data,data,MAX_DATA);
+
+	if(send(params->socketfd, msg, sizeof(struct message), 0) == -1){
+		printf("client: send\n");
+	}
+	free(msg);
+}
+
 int main(){
 	
 	char buf[MAX_DATA];
@@ -358,6 +397,9 @@ int main(){
 				// params = login();
 				// if(params != NULL && params->socketfd != INVALID_SOCKET) pthread_create(&rcvThread, NULL, &receive, params);
 			}
+		}
+		else if (strcmp(cmd, PRIVATEMSG_CMD) == 0){
+			private_msg(params);
 		}
 		else{
 			if(cmd[0] == '/') cmd[tokenLen - 1] = '\0';
