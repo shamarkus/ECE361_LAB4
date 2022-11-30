@@ -1,0 +1,12 @@
+The two additional features that we chose to implement are private messaging and user registration. 
+
+To private message a user you run the command /pm <user> <message>. This will display [PRIVATE] sender: <message> on both the
+ sender's and reciever's screen. It will not print anything on the serverside or on the client side of other users. You cannot
+ private message yourself, you cannot private message someone who is not registered and you cannot private message someone who
+ is not logged in.
+
+User registration is managed by a text file called users.txt:
+When you run the command /createnewuser <username> <password> <server_ip> <port_number>, your username and password
+will be added to a new row in the text file. You cannot create a new user when logged in and you cannot create two
+users with the same username. The file is update dynamically so that even when you restart the server user info is maintained
+
