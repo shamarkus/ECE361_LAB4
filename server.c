@@ -48,7 +48,7 @@ struct user* getUsers(char* inFile){
 
 		strcpy(Users[i].username, clientID);
 		strcpy(Users[i].password, password);
-		Users[i].sessionID[0] = "\0";
+		strcpy(Users[i].sessionID,"\0");
 		Users[i].loggedIn = false;
 		Users[i].sockfd = -1;
 	}
@@ -217,6 +217,8 @@ void* clientCallbacks(void* userInfo_p){
 			}
 		}
 		else if (msgRecv->type == PM){
+			printf("%d", userInfo->userCount);
+
 			char data[MAX_DATA];
 			char* response;
 			char newsrc[MAX_NAME];
@@ -233,6 +235,7 @@ void* clientCallbacks(void* userInfo_p){
 			bool userFound = false;
 			int i = 0;
 			for(i; i < userInfo->userCount; i++){
+				printf("%s", userInfo->Users[i].username);
 				if(!strcmp(userInfo->Users[i].username,reciever)){
 					userFound = true;
 					break;

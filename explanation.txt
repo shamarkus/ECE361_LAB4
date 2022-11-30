@@ -6,7 +6,7 @@ To private message a user you run the command /pm <user> <message>. This will di
  is not logged in.
 
 User registration is managed by a text file called users.txt:
-When you run the command /createnewuser <username> <password> <server_ip> <port_number>, your username and password
+When you run the command /createuser <username> <password> <server_ip> <port_number>, your username and password
 will be added to a new row in the text file. You cannot create a new user when logged in and you cannot create two
 users with the same username. The file is update dynamically so that even when you restart the server user info is maintained
 
